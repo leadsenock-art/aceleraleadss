@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { Lead } from '../types';
-import { MessageCircle, Instagram, Star, Search, User, Pencil, Check, X, Phone } from 'lucide-react';
+import { MessageCircle, Instagram, Star, Search, User, Pencil, Check, X } from 'lucide-react';
 import { generateInstagramLink, generateWhatsAppLink, formatPhoneNumberDisplay, cleanPhoneNumber } from '../utils/formatters';
 
 interface LeadTableProps {
@@ -24,13 +24,6 @@ export const LeadTable: React.FC<LeadTableProps> = ({ leads, messageTemplate, on
     );
   }, [leads, search]);
 
-  const handleWhatsAppClick = (lead: Lead) => {
-    if (!lead.phone) return;
-    const link = generateWhatsAppLink(lead.phone, messageTemplate, lead.name);
-    window.open(link, '_blank');
-    onStatusChange(lead.id, 'contacted');
-  };
-
   const handleInstagramClick = (lead: Lead) => {
     if (!lead.username) return;
     const link = generateInstagramLink(lead.username);
@@ -47,12 +40,15 @@ export const LeadTable: React.FC<LeadTableProps> = ({ leads, messageTemplate, on
     setEditValue(lead.phone || '');
   };
 
-  const cancelEditing = () => {
+  const cancelEditing = (e?: React.MouseEvent) => {
+    e?.stopPropagation();
     setEditingId(null);
     setEditValue('');
   };
 
-  const savePhone = (id: string) => {
+  const savePhone = (id: string, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    // Limpa o número antes de salvar
     const cleaned = cleanPhoneNumber(editValue);
     onPhoneUpdate(id, cleaned);
     setEditingId(null);
@@ -60,8 +56,17 @@ export const LeadTable: React.FC<LeadTableProps> = ({ leads, messageTemplate, on
   };
 
   const handleKeyDown = (e: React.KeyboardEvent, id: string) => {
-    if (e.key === 'Enter') savePhone(id);
-    if (e.key === 'Escape') cancelEditing();
+    if (e.key === 'Enter') {
+        // Wrapper para chamar savePhone sem precisar do MouseEvent
+        const cleaned = cleanPhoneNumber(editValue);
+        onPhoneUpdate(id, cleaned);
+        setEditingId(null);
+        setEditValue('');
+    }
+    if (e.key === 'Escape') {
+        setEditingId(null);
+        setEditValue('');
+    }
   };
 
   return (
@@ -72,7 +77,7 @@ export const LeadTable: React.FC<LeadTableProps> = ({ leads, messageTemplate, on
           <Search className="w-4 h-4 text-zinc-500" />
           <input 
             type="text" 
-            placeholder="Buscar academia..." 
+            placeholder="Buscar por nome..." 
             className="bg-transparent text-sm outline-none w-full text-zinc-200 placeholder:text-zinc-600"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -86,10 +91,10 @@ export const LeadTable: React.FC<LeadTableProps> = ({ leads, messageTemplate, on
           <thead className="bg-zinc-950/50 sticky top-0 z-10 backdrop-blur-md border-b border-white/5 shadow-sm">
             <tr>
               <th className="w-[45%] px-6 py-4 text-[11px] font-bold text-zinc-500 uppercase tracking-wider">
-                  Nome da Academia
+                  Nome
               </th>
               <th className="w-[25%] px-6 py-4 text-[11px] font-bold text-zinc-500 uppercase tracking-wider">
-                  Contato
+                  Contato (Clique para editar)
               </th>
               <th className="w-[30%] px-6 py-4 text-[11px] font-bold text-zinc-500 uppercase tracking-wider text-right">
                   Ações
@@ -97,7 +102,10 @@ export const LeadTable: React.FC<LeadTableProps> = ({ leads, messageTemplate, on
             </tr>
           </thead>
           <tbody className="divide-y divide-white/5">
-            {filteredLeads.map((lead) => (
+            {filteredLeads.map((lead) => {
+                const whatsappLink = lead.phone ? generateWhatsAppLink(lead.phone, messageTemplate, lead.name) : undefined;
+                
+                return (
               <tr key={lead.id} className="hover:bg-white/[0.02] transition-colors group">
                 {/* Name Column */}
                 <td className="px-6 py-4">
@@ -114,9 +122,13 @@ export const LeadTable: React.FC<LeadTableProps> = ({ leads, messageTemplate, on
                 </td>
 
                 {/* Contact Column (Editable) */}
-                <td className="px-6 py-4">
+                <td 
+                    className="px-6 py-4 cursor-pointer" 
+                    onClick={() => !editingId && startEditing(lead)}
+                    title="Clique para adicionar ou editar o número"
+                >
                   {editingId === lead.id ? (
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
                       <input 
                         autoFocus
                         type="text"
@@ -126,25 +138,21 @@ export const LeadTable: React.FC<LeadTableProps> = ({ leads, messageTemplate, on
                         placeholder="551199..."
                         className="bg-black/50 border border-violet-500/50 text-white text-sm rounded px-2 py-1 w-32 focus:outline-none focus:ring-1 focus:ring-violet-500"
                       />
-                      <button onClick={() => savePhone(lead.id)} className="p-1 hover:bg-emerald-500/20 text-emerald-500 rounded">
+                      <button onClick={(e) => savePhone(lead.id, e)} className="p-1 hover:bg-emerald-500/20 text-emerald-500 rounded">
                         <Check className="w-4 h-4" />
                       </button>
-                      <button onClick={cancelEditing} className="p-1 hover:bg-red-500/20 text-red-500 rounded">
+                      <button onClick={(e) => cancelEditing(e)} className="p-1 hover:bg-red-500/20 text-red-500 rounded">
                         <X className="w-4 h-4" />
                       </button>
                     </div>
                   ) : (
                     <div className="flex items-center gap-2 group/edit">
-                      <div className={`text-sm font-mono ${lead.phone ? 'text-zinc-300' : 'text-zinc-600 italic'}`}>
+                      <div className={`text-sm font-mono ${lead.phone ? 'text-zinc-300' : 'text-zinc-600 italic border-b border-dashed border-zinc-700 hover:text-zinc-400 hover:border-zinc-500'}`}>
                         {formatPhoneNumberDisplay(lead.phone)}
                       </div>
-                      <button 
-                        onClick={() => startEditing(lead)}
-                        className="opacity-0 group-hover/edit:opacity-100 p-1 hover:bg-white/10 rounded text-zinc-500 hover:text-white transition-all"
-                        title="Editar número"
-                      >
+                      <div className="opacity-0 group-hover/edit:opacity-100 group-hover:opacity-100 text-zinc-600">
                         <Pencil className="w-3 h-3" />
-                      </button>
+                      </div>
                     </div>
                   )}
                 </td>
@@ -152,19 +160,28 @@ export const LeadTable: React.FC<LeadTableProps> = ({ leads, messageTemplate, on
                 {/* Actions Column */}
                 <td className="px-6 py-4">
                   <div className="flex items-center gap-2 justify-end">
-                    {/* WhatsApp Button */}
-                    <button
-                      onClick={() => handleWhatsAppClick(lead)}
-                      disabled={!lead.phone}
-                      className={`flex items-center justify-center p-2.5 rounded-lg transition-all transform active:scale-95 shrink-0 ${
-                        lead.phone 
-                        ? 'bg-emerald-500 hover:bg-emerald-400 text-white shadow-lg shadow-emerald-900/30' 
-                        : 'bg-zinc-800 text-zinc-600 cursor-not-allowed border border-white/5 opacity-50'
-                      }`}
-                      title={lead.phone ? "Enviar mensagem no WhatsApp" : "Adicione um número para habilitar"}
-                    >
-                      <MessageCircle className="w-5 h-5" />
-                    </button>
+                    {/* WhatsApp Button (Link Real ou Disabled) */}
+                    {lead.phone ? (
+                        <a
+                            href={whatsappLink}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={() => onStatusChange(lead.id, 'contacted')}
+                            className="flex items-center justify-center p-2.5 rounded-lg transition-all transform active:scale-95 shrink-0 bg-emerald-500 hover:bg-emerald-400 text-white shadow-lg shadow-emerald-900/30 hover:shadow-emerald-900/50"
+                            title="Abrir conversa no WhatsApp"
+                        >
+                             <MessageCircle className="w-5 h-5" />
+                        </a>
+                    ) : (
+                        <button
+                            disabled
+                            onClick={() => startEditing(lead)} // Se clicar no desabilitado, abre edição
+                            className="flex items-center justify-center p-2.5 rounded-lg shrink-0 bg-zinc-800 text-zinc-600 cursor-pointer border border-white/5 opacity-50 hover:opacity-80 hover:border-zinc-600"
+                            title="Adicione um número para habilitar"
+                        >
+                             <MessageCircle className="w-5 h-5" />
+                        </button>
+                    )}
 
                     {/* Instagram Button */}
                     <button
@@ -195,14 +212,14 @@ export const LeadTable: React.FC<LeadTableProps> = ({ leads, messageTemplate, on
                   </div>
                 </td>
               </tr>
-            ))}
+            );})}
             
             {filteredLeads.length === 0 && (
                 <tr>
                     <td colSpan={3} className="px-6 py-16 text-center">
                         <div className="flex flex-col items-center justify-center text-zinc-500">
                           <Search className="w-8 h-8 mb-3 opacity-20" />
-                          <p>Nenhuma academia encontrada.</p>
+                          <p>Nenhum lead encontrado.</p>
                         </div>
                     </td>
                 </tr>
